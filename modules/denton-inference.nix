@@ -156,6 +156,17 @@ in
       type = lib.types.nullOr lib.types.str; default = null; example = "10.3.0";
       description = "HSA_OVERRIDE_GFX_VERSION (rocm backend only). RX 580=gfx803, RX 5700 XT=gfx1010.";
     };
+    powerCapWatts = lib.mkOption {
+      type = lib.types.nullOr lib.types.int; default = null; example = 150;
+      description = ''
+        Per-GPU power cap in WATTS via amdgpu sysfs power1_cap (clamped to each card's hardware
+        max). null = stock. PSU PROTECTION: total draw ≈ powerCapWatts × cards + ~70W (board/CPU/
+        risers). 4×150W = 600W GPU ≈ 670W system on a 750W PSU (~89% — high for 24/7; Navi10 has
+        transient spikes above the cap that can trip OCP). For continuous load consider 130-135W
+        (≈ 600W system, ~80% — the PSU efficiency/safety sweet spot). Cap is workload-independent,
+        so it bounds draw whether a card is serving OR mining.
+      '';
+    };
     openFirewall = lib.mkOption { type = lib.types.bool; default = true; description = "Open the active runner port to Tailscale + LAN only."; };
 
     hipfire = {
@@ -193,6 +204,32 @@ in
       "d /var/lib/llama/models 0750 root root - -"
       "d ${cfg.hipfire.modelDir} 0750 root root - -"
     ];
+
+    # ── GPU power cap (PSU protection) — declarative sysfs power1_cap, no rocm-smi needed.
+    #    Bounds draw regardless of workload (inference OR mining), clamped per-card to hw max. ──
+    systemd.services.denton-gpu-powercap = lib.mkIf (hasGpu && cfg.powerCapWatts != null) {
+      description = "DentonOS AMD GPU power cap (${toString cfg.powerCapWatts}W/card via sysfs)";
+      wantedBy = [ "multi-user.target" ];
+      after = [ "systemd-udev-settle.service" ];
+      path = [ pkgs.coreutils ];
+      serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
+      script = ''
+        set -u
+        CAP_UW=$(( ${toString cfg.powerCapWatts} * 1000000 ))
+        shopt -s nullglob
+        for cap in /sys/class/drm/card*/device/hwmon/hwmon*/power1_cap; do
+          dir=$(dirname "$cap")
+          max=$(cat "$dir/power1_cap_max" 2>/dev/null || echo 0)
+          want=$CAP_UW
+          if [ "$max" -gt 0 ] && [ "$want" -gt "$max" ]; then want=$max; fi
+          if echo "$want" > "$cap" 2>/dev/null; then
+            echo "capped $cap -> $((want / 1000000))W"
+          else
+            echo "WARN: could not write $cap (card may not support power cap)"
+          fi
+        done
+      '';
+    };
 
     # ── Runner: llama-cpp (default / fallback) ──
     services.llama-cpp = lib.mkIf isLlama {

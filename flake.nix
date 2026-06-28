@@ -2,9 +2,14 @@
   description = "denton-nix — DentonOS plug-and-play inference-server NixOS configs (worker-01 first; brainstem deferred)";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
+    # COMMIT-PINNED tarball URLs — NOT github: (uses api.github.com, blocked/flaky on some nodes
+    # and triggers the `-33 object hash mismatch` git-fetcher corruption seen on these rigs) and
+    # NOT branch tarballs (…/nixos-24.11.tar.gz is byte-UNSTABLE → nix hash mismatch). A commit-SHA
+    # archive is content-stable → deterministic narHash, plain-HTTPS codeload, zero GitHub API /
+    # token. These SHAs are nixos-24.11 (built clean on the worker). Bump to update.
+    nixpkgs.url = "https://github.com/NixOS/nixpkgs/archive/50ab793786d9de88ee30ec4e4c24fb4236fc2674.tar.gz";
     disko = {
-      url = "github:nix-community/disko";
+      url = "https://github.com/nix-community/disko/archive/ff8702b4de27f72b4c78573dfb89ec74e36abdf1.tar.gz";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -20,6 +25,7 @@
         inference = ./modules/denton-inference.nix;
         hardening = ./modules/denton-hardening.nix;
         disko = ./modules/denton-disko.nix;
+        desktop = ./modules/denton-desktop.nix;   # TEMPORARY bring-up desktop (opt-in toggle)
       };
 
       nixosConfigurations = {

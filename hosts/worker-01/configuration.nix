@@ -1,4 +1,9 @@
-# worker-01 (denton-worker-01, Tailscale 100.102.176.60) — THE NixOS inference test.
+# worker-01 (denton-worker-01) — THE NixOS inference test.
+#
+# TAILSCALE IDENTITY IS DYNAMIC — do NOT hardcode the IP anywhere. A reinstall re-registers
+# the node under a NEW key/IP (it moved 100.102.176.60 → 100.68.82.99 on the NixOS cutover; the
+# old .60 is now a stale "offline" ghost — delete it in the admin console). Address the node by
+# its MagicDNS name `denton-worker-01` (from networking.hostName below), never the raw IP.
 #
 # Mission: clean-slate, plug-and-play inference SERVER. Brand-new image, fresh flake,
 # hardened from boot. Engine = llama.cpp / llama-server (Ollama is banned).
@@ -13,7 +18,12 @@
     ../../modules/denton-base.nix        # flakes, tailscale, ssh, admins
     ../../modules/denton-hardening.nix   # ssh/kernel/net hardening, fail2ban, zram
     ../../modules/denton-inference.nix   # llama-server + ROCm, scales 0→12 GPUs
+    ../../modules/denton-desktop.nix     # TEMPORARY desktop for bring-up — disable below when SSH is solid
   ];
+
+  # ── TEMPORARY desktop (bring-up only) ── browser for Claude OAuth + Node for Claude Code on
+  #    the box, so keys get pasted not hand-typed. Flip to false + rebuild to remove it later.
+  denton.desktop.enable = true;
 
   boot.loader.systemd-boot.enable = true;
   boot.loader.systemd-boot.configurationLimit = 3;
@@ -50,6 +60,9 @@
     #    AVX2 llama-cpp binary SIGILLs at init (status=4/ILL, dies even on `--version`).
     #    "portable" rebuilds with no AVX so it runs. Compiles from source (slow on 2 cores). ──
     cpuBaseline = "portable";
+    # ── PSU protection: 4 cards on a 750W PSU, keep total under ~600W. 150W/card = 600W GPU
+    #    (~670W system, ~89% — see note in the module; drop to 135 if you see load reboots). ──
+    powerCapWatts = 150;
     # Recommended starter model — drop a GGUF at `model`, or set modelUrl to auto-fetch.
     model = "/var/lib/llama/models/default.gguf";
     # modelUrl = "https://huggingface.co/<repo>/resolve/main/<model>.Q4_K_M.gguf";
