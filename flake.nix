@@ -2,9 +2,12 @@
   description = "denton-nix — DentonOS plug-and-play inference-server NixOS configs (worker-01 first; brainstem deferred)";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
+    # Tarball (codeload) URLs, NOT github: refs — the latter use api.github.com, which is
+    # rate-limited/blocked on some nodes (worker-01 hit api 404/401 while codeload worked).
+    # Tarballs fetch over plain HTTPS via codeload and need no GitHub API / token.
+    nixpkgs.url = "https://github.com/NixOS/nixpkgs/archive/nixos-24.11.tar.gz";
     disko = {
-      url = "github:nix-community/disko";
+      url = "https://github.com/nix-community/disko/archive/master.tar.gz";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
