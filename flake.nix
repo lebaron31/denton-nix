@@ -2,12 +2,13 @@
   description = "denton-nix — DentonOS plug-and-play inference-server NixOS configs (worker-01 first; brainstem deferred)";
 
   inputs = {
-    # Tarball (codeload) URLs, NOT github: refs — the latter use api.github.com, which is
-    # rate-limited/blocked on some nodes (worker-01 hit api 404/401 while codeload worked).
-    # Tarballs fetch over plain HTTPS via codeload and need no GitHub API / token.
-    nixpkgs.url = "https://github.com/NixOS/nixpkgs/archive/nixos-24.11.tar.gz";
+    # COMMIT-PINNED tarball URLs — NOT github: (uses api.github.com, blocked on some nodes)
+    # and NOT branch tarballs (…/master.tar.gz is byte-UNSTABLE → nix hash mismatch).
+    # A commit-SHA archive is content-stable → deterministic narHash, plain-HTTPS codeload,
+    # zero GitHub API / token. Bump these SHAs to update.
+    nixpkgs.url = "https://github.com/NixOS/nixpkgs/archive/50ab793786d9de88ee30ec4e4c24fb4236fc2674.tar.gz";
     disko = {
-      url = "https://github.com/nix-community/disko/archive/master.tar.gz";
+      url = "https://github.com/nix-community/disko/archive/ff8702b4de27f72b4c78573dfb89ec74e36abdf1.tar.gz";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
