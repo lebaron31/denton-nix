@@ -43,11 +43,26 @@ let
   useVulkan = resolvedBackend == "vulkan";
   useCuda = resolvedBackend == "cuda";
 
-  llamaPkg =
+  llamaBase =
     if useRocm then cfg.package.override { rocmSupport = true; }
     else if useCuda then cfg.package.override { cudaSupport = true; }
     else if useVulkan then cfg.package.override { vulkanSupport = true; }
     else cfg.package;
+
+  # ── CPU codegen baseline (no-refusal: works on ANY x86, incl. AVX-less mining-rig CPUs) ──
+  # The nixpkgs binary defaults to AVX2. On a CPU without AVX (Intel Celeron/Pentium — Comet
+  # Lake fuses AVX off; tops out at SSE4.2) it SIGILLs at static-init (status=4/ILL, even on
+  # `--version`). "portable" rebuilds with NO AVX/FMA/F16C so the same flake boots on junk CPUs.
+  cpuOffFlags = map (n: lib.cmakeBool n false)
+    [ "GGML_NATIVE" "GGML_AVX" "GGML_AVX2" "GGML_AVX512" "GGML_FMA" "GGML_F16C" "GGML_AVX_VNNI" ];
+  cpuFlags =
+    if cfg.cpuBaseline == "portable" then cpuOffFlags
+    else if cfg.cpuBaseline == "native" then [ (lib.cmakeBool "GGML_NATIVE" true) ]
+    else [];  # auto = nixpkgs default (AVX2 — fine on most CPUs)
+
+  llamaPkg =
+    if cpuFlags == [] then llamaBase
+    else llamaBase.overrideAttrs (old: { cmakeFlags = (old.cmakeFlags or []) ++ cpuFlags; });
 
   gpuFlags = lib.optionals hasGpu
     ([ "-ngl" (toString cfg.gpuLayers) ] ++ lib.optionals multiGpu [ "--split-mode" cfg.splitMode ]);
@@ -99,6 +114,20 @@ in
     package = lib.mkOption {
       type = lib.types.package; default = pkgs.llama-cpp;
       description = "Base llama.cpp package; vulkan/rocm support layered via .override per gpuBackend.";
+    };
+
+    cpuBaseline = lib.mkOption {
+      type = lib.types.enum [ "auto" "portable" "native" ];
+      default = "auto";
+      description = ''
+        CPU codegen baseline for llama.cpp.
+          auto     = nixpkgs default (AVX2) — fine on most CPUs, uses the binary cache.
+          portable = NO AVX/AVX2/FMA/F16C (SSE4.2 only). REQUIRED on AVX-less CPUs such as
+                     Intel Celeron/Pentium (Comet Lake fuses AVX off) — otherwise the binary
+                     SIGILLs at static-init (status=4/ILL, fails even on `--version`).
+                     NOTE: forces a from-source rebuild (slow on weak CPUs; not cached).
+          native   = -march=native (single-host only, non-reproducible).
+      '';
     };
 
     model = lib.mkOption {

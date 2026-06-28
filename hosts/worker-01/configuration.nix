@@ -46,6 +46,10 @@
     # gfx803 is DROPPED by modern ROCm → Vulkan is the reliable path. auto = vulkan.
     gpuBackend = "auto";
     rocmGfxVersion = null; # only used if gpuBackend = "rocm"
+    # ── CPU is an Intel Celeron G5920 (Comet Lake, AVX FUSED OFF — SSE4.2 only). The stock
+    #    AVX2 llama-cpp binary SIGILLs at init (status=4/ILL, dies even on `--version`).
+    #    "portable" rebuilds with no AVX so it runs. Compiles from source (slow on 2 cores). ──
+    cpuBaseline = "portable";
     # Recommended starter model — drop a GGUF at `model`, or set modelUrl to auto-fetch.
     model = "/var/lib/llama/models/default.gguf";
     # modelUrl = "https://huggingface.co/<repo>/resolve/main/<model>.Q4_K_M.gguf";
