@@ -146,7 +146,7 @@ in
     gpuLayers = lib.mkOption { type = lib.types.int; default = 999; description = "-ngl GPU-offloaded layers (999=all)."; };
     flashAttention = lib.mkOption {
       type = lib.types.bool; default = true;
-      description = "Flash attention (-fa). Shrinks KV cache — important for the RX 580's ~4GB usable Vulkan window (verified field finding).";
+      description = "Flash attention (-fa). Shrinks the KV cache — frees VRAM for longer context / bigger models (worker-01 cards are 8GB: a 7B Q4_K_M fits hot per card with -fa headroom).";
     };
     splitMode = lib.mkOption {
       type = lib.types.enum [ "layer" "row" "none" ]; default = "layer";

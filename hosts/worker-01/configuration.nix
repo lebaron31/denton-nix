@@ -47,10 +47,12 @@
   # ── Inference role ──
   denton.inference = {
     enable = true;
-    # ── THE ONE KNOB ── this rig is the ex-HiveOS miner: 4× RX 570 (Polaris/gfx803,
-    # ~4GB) + 1× RX 5700 XT (RDNA1/gfx1010, ~8GB) = 5 AMD GPUs. Vulkan (auto) sees all
-    # of them — ROCm dropped gfx803. If fewer are seated, the no-refusal module clamps +
-    # warns (never breaks); verify with `vulkaninfo --summary` before raising further.
+    # ── THE ONE KNOB ── ex-HiveOS miner, ALL 8GB cards: Polaris (gfx803, 8GB) + RX 5700 XT
+    # (RDNA1/gfx1010, 8GB). 4 currently seated (a 5th is pending recovery). 8GB/card means a
+    # 7B Q4_K_M fits hot on EVERY card. Vulkan (auto) sees them — ROCm dropped gfx803. Fewer
+    # seated → the no-refusal module clamps + warns (never breaks); check `vulkaninfo --summary`.
+    # NOTE: at 150W/card the 750W PSU realistically powers ~4 cards; a returning 5th needs a
+    # lower cap (5×115≈575W) or more PSU.
     gpuCount = 5;
     gpuVendor = "amd";   # this box is AMD; nodes set their own vendor (never hardcoded fleet-wide)
     # gfx803 is DROPPED by modern ROCm → Vulkan is the reliable path. auto = vulkan.
