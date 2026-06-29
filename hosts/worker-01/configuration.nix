@@ -21,11 +21,13 @@
     ../../modules/denton-desktop.nix     # TEMPORARY desktop for bring-up — disable below when SSH is solid
   ];
 
-  # ── TEMPORARY desktop (bring-up only) ── barebones Openbox + Firefox so you can do Claude
-  #    OAuth in a browser. ~200MB lighter than XFCE (matters on this flaky link). Flip enable
-  #    to false + rebuild to remove it once OAuth/SSH is solid.
-  denton.desktop.enable = true;
-  denton.desktop.minimal = true;     # Openbox + Firefox only, no XFCE
+  # ── Desktop DISABLED (2026-06-29) ── SSH-over-tailnet works + kimi runs on the API key, so the
+  #    browser-for-OAuth reason is gone. Crucially this drops corectrl/qt/xfce/firefox — the big
+  #    cache.nixos.org downloads that CORRUPT on the worker's flaky link and failed the rebuild
+  #    (lzma "Corrupted input data" on corectrl). With it off, the only thing left to build is the
+  #    no-AVX llama.cpp (from source, zero network). Re-enable later only if a local GUI is needed.
+  denton.desktop.enable = false;
+  denton.desktop.minimal = true;     # (moot while disabled) Openbox + Firefox only, no XFCE
   denton.desktop.coreCtrl = false;   # skip the GPU GUI for now (smaller download)
 
   boot.loader.systemd-boot.enable = true;
