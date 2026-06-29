@@ -38,7 +38,7 @@
   # ── RECOMMENDED-BUT-BYO access (the "suggested keys") — replace before cutover ──
   # Paste your real pubkey(s) so SSH works the moment it boots (no console needed).
   denton.access.sshKeys = [
-    # "ssh-ed25519 AAAA...your-key... chase@macbook"
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEXs83OLDeb3weEg85+A8Cit6a6AizfRQrsqMFaBsQv1 denton-hop"
   ];
   # Recommended: an EPHEMERAL Tailscale auth key in this file so the box self-joins
   # the tailnet on first boot, unattended. Generate at https://login.tailscale.com/admin/settings/keys
