@@ -26,6 +26,10 @@
         hardening = ./modules/denton-hardening.nix;
         disko = ./modules/denton-disko.nix;
         desktop = ./modules/denton-desktop.nix;   # TEMPORARY bring-up desktop (opt-in toggle)
+        # ── DentonOS "era ideas" — all opt-in (default OFF), warn+degrade, local-only/PII ──
+        dentonfish = ./modules/denton-dentonfish.nix;  # OG worker divergence engine (cortex/security/finance)
+        finance = ./modules/denton-finance.nix;        # local-only ledger (records/stages, never executes)
+        quarantine = ./modules/denton-quarantine.nix;  # network-less sandbox for vice/nsfw/Lilith
       };
 
       nixosConfigurations = {
