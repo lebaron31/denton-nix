@@ -21,9 +21,12 @@
     ../../modules/denton-desktop.nix     # TEMPORARY desktop for bring-up — disable below when SSH is solid
   ];
 
-  # ── TEMPORARY desktop (bring-up only) ── browser for Claude OAuth + Node for Claude Code on
-  #    the box, so keys get pasted not hand-typed. Flip to false + rebuild to remove it later.
+  # ── TEMPORARY desktop (bring-up only) ── barebones Openbox + Firefox so you can do Claude
+  #    OAuth in a browser. ~200MB lighter than XFCE (matters on this flaky link). Flip enable
+  #    to false + rebuild to remove it once OAuth/SSH is solid.
   denton.desktop.enable = true;
+  denton.desktop.minimal = true;     # Openbox + Firefox only, no XFCE
+  denton.desktop.coreCtrl = false;   # skip the GPU GUI for now (smaller download)
 
   boot.loader.systemd-boot.enable = true;
   boot.loader.systemd-boot.configurationLimit = 3;

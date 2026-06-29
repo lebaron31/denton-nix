@@ -16,6 +16,16 @@ in
   options.denton.desktop = {
     enable = lib.mkEnableOption "TEMPORARY XFCE desktop + browser for bring-up (disable once SSH is solid)";
 
+    minimal = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Barebones mode: Openbox WM + Firefox only (NO XFCE) — ~200MB less to download, which
+        matters on a flaky link. Right-click the desktop for the menu; launch Firefox for OAuth.
+        false = full XFCE.
+      '';
+    };
+
     autoLoginUser = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = "nvsble";
@@ -45,11 +55,12 @@ in
     # Lightweight desktop. `enable = true` (not mkDefault) overrides hardening's mkDefault-false X.
     services.xserver = {
       enable = true;
-      desktopManager.xfce.enable = true;
+      desktopManager.xfce.enable = !cfg.minimal;   # full DE only when not barebones
+      windowManager.openbox.enable = cfg.minimal;  # barebones: tiny WM, right-click menu
       displayManager.lightdm.enable = true;
     };
     services.displayManager = {
-      defaultSession = "xfce";
+      defaultSession = if cfg.minimal then "none+openbox" else "xfce";
       autoLogin = lib.mkIf (cfg.autoLoginUser != null) {
         enable = true;
         user = cfg.autoLoginUser;
@@ -59,7 +70,7 @@ in
     # The whole point: a browser for Claude OAuth + clipboard paste (no more hand-typed keys).
     environment.systemPackages = with pkgs; [
       firefox
-      xclip wl-clipboard          # terminal <-> browser clipboard
+      xclip                       # terminal <-> browser clipboard (X session)
     ] ++ lib.optionals cfg.claudeCode [ nodejs_22 ]
       ++ lib.optionals cfg.coreCtrl [ corectrl ];
 
