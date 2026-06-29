@@ -52,9 +52,11 @@
       "ip": ["6379","3000","4000","8080","8081","8082","8083","8084",
              "11434","11440","11441","11442","11443","11444"] },
 
-    // admin devices -> servers (management only; least-privilege)
-    { "src": ["tag:admin"], "dst": ["tag:brainstem"], "ip": ["22","3000","3001","8080"] },
-    { "src": ["tag:admin"], "dst": ["tag:worker"],    "ip": ["22"] },
+    // admin devices -> servers (management only; least-privilege). src includes group:Admin so
+    // YOUR user-owned (untagged) Mac/iPhone work even if you don't tag them; tag:admin covers
+    // any device you DO tag. (Kim's devices: leave UNtagged + not in group:Admin → no access.)
+    { "src": ["group:Admin","tag:admin"], "dst": ["tag:brainstem"], "ip": ["22","3000","3001","8080"] },
+    { "src": ["group:Admin","tag:admin"], "dst": ["tag:worker"],    "ip": ["22"] },
 
     // dev box -> denton-server tier (kept; inert until a node carries the tag)
     { "src": ["host:nixos-genesis"], "dst": ["tag:denton-server"], "ip": ["22","3000"] }
