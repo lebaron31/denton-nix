@@ -91,6 +91,17 @@
       enable = true;
       mainGpu = 1;
     };
+    # ── 570 power budget: 145W hard cap/card → 4×145 = 580W ≤ 600W (the 570s' own PSU).
+    #    Card runs ~135-140 under load; 150 is the absolute ceiling (power1_cap_max). The 5700XT
+    #    is on the separate EVGA PSU → it keeps powerCapWatts (150, raisable since it's isolated). ──
+    polarisCapWatts = 145;
+    # ── Light up the 2 idle 570s (devices 2 & 3) as extra chat lanes of the 3B (parallel throughput).
+    #    Repurpose later (coder model / 2nd embed) by editing model/embedding. dev0=5700XT chat:8080,
+    #    dev1=570 embed:8081, dev2=570 chat:8082, dev3=570 chat:8083. ──
+    extraServers = [
+      { port = 8082; mainGpu = 2; }
+      { port = 8083; mainGpu = 3; }
+    ];
   };
 
   system.stateVersion = "24.11";

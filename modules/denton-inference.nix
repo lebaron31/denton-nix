@@ -74,6 +74,9 @@ let
     // (lib.optionalAttrs (useRocm && cfg.rocmGfxVersion != null) { HSA_OVERRIDE_GFX_VERSION = cfg.rocmGfxVersion; });
 
   activePort = if isHipfire then cfg.hipfire.port else cfg.port;
+  # Polaris (RX 470/480/570/580) get their OWN cap so 4× 570 can't blow the PSU; everything else
+  # (5700XT etc.) uses powerCapWatts. Falls back to powerCapWatts when polarisCapWatts is null.
+  polarisCap = if cfg.polarisCapWatts != null then cfg.polarisCapWatts else cfg.powerCapWatts;
 in
 {
   options.denton.inference = {
@@ -182,6 +185,23 @@ in
       modelUrl = lib.mkOption { type = lib.types.nullOr lib.types.str; default = "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/main/nomic-embed-text-v1.5.f16.gguf"; description = "Auto-fetch the embedding GGUF if absent (null = expect it present)."; };
       mainGpu = lib.mkOption { type = lib.types.int; default = 1; description = "Vulkan device index for the embedder (1 = a 570; leaves GPU0/5700XT for chat)."; };
     };
+
+    polarisCapWatts = lib.mkOption {
+      type = lib.types.nullOr lib.types.int; default = null; example = 145;
+      description = "Power cap (W) for Polaris cards (RX 470/480/570/580, PCI dev 0x67df) SPECIFICALLY, so the 570s fit their own PSU budget (145W × 4 = 580W ≤ 600W; hard cap, card runs ~135-140 under load, 150 = absolute via power1_cap_max). Falls back to powerCapWatts when null; non-Polaris cards (5700XT etc.) use powerCapWatts.";
+    };
+    extraServers = lib.mkOption {
+      default = [];
+      description = "Extra llama-server instances, one per otherwise-idle GPU (lights up the cards). Each: { port, mainGpu, model?, embedding? }.";
+      type = lib.types.listOf (lib.types.submodule {
+        options = {
+          port = lib.mkOption { type = lib.types.port; description = "Instance port (tailnet-reachable)."; };
+          mainGpu = lib.mkOption { type = lib.types.int; description = "Vulkan device index to pin this instance to."; };
+          model = lib.mkOption { type = lib.types.str; default = "/var/lib/llama/models/default.gguf"; description = "GGUF path."; };
+          embedding = lib.mkOption { type = lib.types.bool; default = false; description = "Run in --embedding mode."; };
+        };
+      });
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -223,19 +243,27 @@ in
       serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
       script = ''
         set -u
-        CAP_UW=$(( ${toString cfg.powerCapWatts} * 1000000 ))
+        OTHER_UW=$(( ${toString cfg.powerCapWatts} * 1000000 ))
+        POLARIS_UW=$(( ${toString polarisCap} * 1000000 ))
         shopt -s nullglob
+        polaris_total=0
         for cap in /sys/class/drm/card*/device/hwmon/hwmon*/power1_cap; do
+          devdir=$(dirname "$(dirname "$(dirname "$cap")")")   # .../cardN/device
+          devid=$(cat "$devdir/device" 2>/dev/null || echo unknown)
+          case "$devid" in
+            0x67df|0x6fdf) want=$POLARIS_UW; polaris_total=$((polaris_total + POLARIS_UW)) ;;  # Ellesmere RX 470/480/570/580
+            *)             want=$OTHER_UW ;;
+          esac
           dir=$(dirname "$cap")
           max=$(cat "$dir/power1_cap_max" 2>/dev/null || echo 0)
-          want=$CAP_UW
           if [ "$max" -gt 0 ] && [ "$want" -gt "$max" ]; then want=$max; fi
           if echo "$want" > "$cap" 2>/dev/null; then
-            echo "capped $cap -> $((want / 1000000))W"
+            echo "capped $cap ($devid) -> $((want / 1000000))W"
           else
-            echo "WARN: could not write $cap (card may not support power cap)"
+            echo "WARN: could not write $cap"
           fi
         done
+        echo "Polaris(570) per-card ${toString polarisCap}W; aggregate now $((polaris_total / 1000000))W (budget 600W)"
       '';
     };
 
@@ -292,6 +320,22 @@ in
         SupplementaryGroups = lib.mkIf hasGpu [ "render" "video" ];
       };
     };
+
+    # ── Extra per-card instances (light up otherwise-idle GPUs) ──
+    systemd.services = lib.mkMerge (map (s: {
+      "denton-extra-${toString s.port}" = lib.mkIf isLlama {
+        description = "DentonOS extra llama-server :${toString s.port} on GPU ${toString s.mainGpu}${lib.optionalString s.embedding " (embed)"}";
+        wantedBy = [ "multi-user.target" ];
+        after = [ "network.target" ];
+        environment = llamaEnv;
+        serviceConfig = {
+          ExecStart = "${llamaPkg}/bin/llama-server --log-disable --host ${cfg.host} --port ${toString s.port} ${lib.optionalString s.embedding "--embedding "}-m ${s.model} -ngl ${toString cfg.gpuLayers} --split-mode none --main-gpu ${toString s.mainGpu}";
+          Restart = "on-failure";
+          RestartSec = 3;
+          SupplementaryGroups = lib.mkIf hasGpu [ "render" "video" ];
+        };
+      };
+    }) cfg.extraServers);
 
     # ── Runner: hipfire (materializes only when a package is supplied) ──
     systemd.services.denton-hipfire = lib.mkIf (isHipfire && cfg.hipfire.package != null) {
