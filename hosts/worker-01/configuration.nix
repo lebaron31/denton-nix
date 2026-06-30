@@ -75,6 +75,10 @@
     # modelUrl = "https://huggingface.co/<repo>/resolve/main/<model>.Q4_K_M.gguf";
     contextSize = 4096;
     parallel = 1;
+    # ── Flash attention OFF: the RX 570 (Polaris/gfx803) report `fp16: 0` under Vulkan (no half-
+    #    precision) → `-fa` crashes the server (exit 1) on those cards. The 5700 XT supports fp16,
+    #    but a mixed split must run without -fa. Re-enable only on an all-fp16 (RDNA) GPU set. ──
+    flashAttention = false;
   };
 
   system.stateVersion = "24.11";
