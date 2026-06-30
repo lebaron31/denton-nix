@@ -174,6 +174,14 @@ in
       port = lib.mkOption { type = lib.types.port; default = 11435; description = "hipfire bridge port."; };
       modelDir = lib.mkOption { type = lib.types.str; default = "/var/lib/hipfire/models"; description = "Where .mq4 models live."; };
     };
+
+    embedding = {
+      enable = lib.mkOption { type = lib.types.bool; default = false; description = "Run a SECOND llama-server in --embedding mode on a dedicated GPU (offloads embeddings off the brainstem). Serves OpenAI-compatible /v1/embeddings."; };
+      port = lib.mkOption { type = lib.types.port; default = 8081; description = "Embedding server port (tailnet-reachable via trustedInterfaces)."; };
+      model = lib.mkOption { type = lib.types.str; default = "/var/lib/llama/models/nomic-embed.gguf"; description = "Embedding model GGUF path."; };
+      modelUrl = lib.mkOption { type = lib.types.nullOr lib.types.str; default = "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/main/nomic-embed-text-v1.5.f16.gguf"; description = "Auto-fetch the embedding GGUF if absent (null = expect it present)."; };
+      mainGpu = lib.mkOption { type = lib.types.int; default = 1; description = "Vulkan device index for the embedder (1 = a 570; leaves GPU0/5700XT for chat)."; };
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -255,6 +263,34 @@ in
           curl -fL --retry 3 -o "${cfg.model}" "${cfg.modelUrl}"
         fi
       '';
+    };
+
+    # ── Runner: second llama-server in --embedding mode (offloads embeddings off the brainstem) ──
+    systemd.services.denton-embed-fetch = lib.mkIf (isLlama && cfg.embedding.enable && cfg.embedding.modelUrl != null) {
+      description = "Fetch the embedding GGUF if absent (DentonOS)";
+      wantedBy = [ "multi-user.target" ];
+      before = [ "denton-embed.service" ];
+      path = [ pkgs.curl ];
+      serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
+      script = ''
+        if [ ! -s "${cfg.embedding.model}" ]; then
+          echo "fetching ${cfg.embedding.modelUrl} -> ${cfg.embedding.model}"
+          curl -fL --retry 3 -o "${cfg.embedding.model}" "${cfg.embedding.modelUrl}"
+        fi
+      '';
+    };
+    systemd.services.denton-embed = lib.mkIf (isLlama && cfg.embedding.enable) {
+      description = "DentonOS llama-server (embeddings) on GPU ${toString cfg.embedding.mainGpu}, port ${toString cfg.embedding.port}";
+      wantedBy = [ "multi-user.target" ];
+      after = [ "network.target" ] ++ lib.optional (cfg.embedding.modelUrl != null) "denton-embed-fetch.service";
+      requires = lib.optional (cfg.embedding.modelUrl != null) "denton-embed-fetch.service";
+      environment = llamaEnv;
+      serviceConfig = {
+        ExecStart = "${llamaPkg}/bin/llama-server --log-disable --host ${cfg.host} --port ${toString cfg.embedding.port} --embedding -m ${cfg.embedding.model} -ngl ${toString cfg.gpuLayers} --split-mode none --main-gpu ${toString cfg.embedding.mainGpu}";
+        Restart = "on-failure";
+        RestartSec = 3;
+        SupplementaryGroups = lib.mkIf hasGpu [ "render" "video" ];
+      };
     };
 
     # ── Runner: hipfire (materializes only when a package is supplied) ──

@@ -84,6 +84,13 @@
     #    is the config proven to serve (offloaded 37/37 layers, server listening). Use "layer" only
     #    for a model too big for one card. ──
     splitMode = "none";
+    # ── Embeddings on an idle 570 (Vulkan device 1): a 2nd llama-server in --embedding mode on :8081.
+    #    Offloads embeddings off the memory-starved brainstem (it OOM'd a 25GB in-RAM embed pass).
+    #    Auto-fetches nomic-embed; tailnet-reachable at 100.68.82.99:8081/v1/embeddings. ──
+    embedding = {
+      enable = true;
+      mainGpu = 1;
+    };
   };
 
   system.stateVersion = "24.11";
