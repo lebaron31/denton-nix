@@ -1,0 +1,95 @@
+// DENTON tailnet ACL — corrected + hardened 2026-06-29
+// Paste into Tailscale admin console > Access controls. SAFE merge (adversarially verified):
+//   FIX 1  SSH into TAGGED servers actually works (was silently denied: the only ssh rule was
+//          action:check + dst:autogroup:self, which never matches user-ownerless tagged nodes).
+//   FIX 2  ipset purges the DEAD worker .60, adds the live worker 100.68.82.99.
+//   FIX 3  opens the REAL service ports brainstem<->worker (llama :8080-8084, gateway :4000,
+//          denton-api :3000) — was only the legacy 11434-11444 council slots.
+//   FIX 4  adds the box<->box ssh rule the cluster needs for unattended server-to-server SSH.
+// REMOVED (security regressions in the draft): the GitHub app-connector (egress through your
+//   nodes), tags-owning-tags in tagOwners (self-escalation), tag:denton-server in ssh dst.
+// PASTE ONLY with a physical keyboard at both boxes + OpenSSH fallback already up (see runbook).
+
+{
+  "groups": { "group:Admin": ["vvbrf6ktqw@privaterelay.appleid.com"] },
+
+  // tagOwners tightened to a HUMAN owner only (no tag-owns-tag self-escalation).
+  "tagOwners": {
+    "tag:admin":         ["group:Admin"],
+    "tag:brainstem":     ["group:Admin"],
+    "tag:worker":        ["group:Admin"],
+    "tag:denton-server": ["group:Admin"]
+  },
+
+  "hosts": {
+    "denton-brainstem": "100.73.21.38",
+    "denton-worker":    "100.68.82.99",
+    "nixos-genesis":    "100.69.12.17",
+    "denton-macbook":   "100.92.220.8",
+    "chase-iphone":     "100.110.208.97",
+    "kim-iphone":       "100.72.0.77",
+    "denton-kim-ipad":  "100.71.213.79"
+  },
+
+  "ipsets": {
+    "ipset:denton-cluster": [
+      "add 100.73.21.38",    // denton-brainstem
+      "add 100.68.82.99",    // denton-worker (was the dead 100.102.176.60)
+      "add 100.69.12.17",    // nixos-genesis
+      "add 100.92.220.8",    // denton-macbook
+      "add 100.110.208.97",  // chase-iphone
+      "add 100.72.0.77",     // kim-iphone
+      "add 100.71.213.79"    // denton-kim-ipad
+    ]
+  },
+
+  "grants": [
+    // brainstem <-> worker: redis + hermes gw + per-GPU llama + legacy council slots
+    { "src": ["tag:brainstem"], "dst": ["tag:worker"],
+      "ip": ["6379","4000","8080","8081","8082","8083","8084",
+             "11434","11435","11436","11437","11438","11439","11440","11441","11442","11443","11444"] },
+    { "src": ["tag:worker"], "dst": ["tag:brainstem"],
+      "ip": ["6379","3000","4000","8080","8081","8082","8083","8084",
+             "11434","11440","11441","11442","11443","11444"] },
+
+    // admin devices -> servers (management only; least-privilege). src includes group:Admin so
+    // YOUR user-owned (untagged) Mac/iPhone work even if you don't tag them; tag:admin covers
+    // any device you DO tag. (Kim's devices: leave UNtagged + not in group:Admin → no access.)
+    { "src": ["group:Admin","tag:admin"], "dst": ["tag:brainstem"], "ip": ["22","3000","3001","8080"] },
+    { "src": ["group:Admin","tag:admin"], "dst": ["tag:worker"],    "ip": ["22"] },
+
+    // dev box -> denton-server tier (kept; inert until a node carries the tag)
+    { "src": ["host:nixos-genesis"], "dst": ["tag:denton-server"], "ip": ["22","3000"] }
+  ],
+
+  "ssh": [
+    // FIX 1 — admin -> the TAGGED servers. action:accept (works unattended + from tagged sources);
+    // explicit tag dst is what authorizes SSH on user-ownerless tagged nodes. Pair with
+    // `tailscale up --ssh` on each box.
+    { "action": "accept",
+      "src":    ["group:Admin", "tag:admin"],
+      "dst":    ["tag:brainstem", "tag:worker"],
+      "users":  ["autogroup:nonroot", "root"] },
+
+    // FIX 4 — box <-> box (unattended server-to-server SSH the cluster needs).
+    { "action": "accept",
+      "src":    ["tag:brainstem", "tag:worker"],
+      "dst":    ["tag:brainstem", "tag:worker"],
+      "users":  ["autogroup:nonroot", "root"] },
+
+    // default — untagged member devices SSH their OWN devices (switched check->accept so it's
+    // unattended; self still scopes it to a member's own untagged laptops/phones).
+    { "action": "accept",
+      "src":    ["autogroup:member"],
+      "dst":    ["autogroup:self"],
+      "users":  ["autogroup:nonroot", "root"] }
+  ],
+
+  "autoApprovers": { "exitNode": ["group:Admin"] },
+  "postures": { "posture:denton-posture": ["node:tsReleaseTrack == 'stable'", "node:tsAutoUpdate == true"] },
+
+  // funnel kept (opt-in, per-node); GitHub app-connector REMOVED (was unrelated egress scope-creep).
+  "nodeAttrs": [
+    { "target": ["autogroup:member"], "attr": ["funnel"] }
+  ]
+}

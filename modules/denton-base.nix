@@ -35,6 +35,11 @@ in
       experimental-features = [ "nix-command" "flakes" ];
       auto-optimise-store = true;
       trusted-users = [ "root" "nvsble" "denton" ];
+      # Flaky-link resilience: bigger download buffer + patient timeouts so large substitutes /
+      # tarballs don't truncate-corrupt mid-stream on a poor connection (the worker's reality).
+      download-buffer-size = 536870912;   # 512 MiB (default 64 MiB warns "increase download-buffer-size")
+      connect-timeout = 10;
+      stalled-download-timeout = 90;
     };
     nix.gc = {
       automatic = true;
