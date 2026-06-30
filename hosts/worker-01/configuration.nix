@@ -79,6 +79,11 @@
     #    precision) → `-fa` crashes the server (exit 1) on those cards. The 5700 XT supports fp16,
     #    but a mixed split must run without -fa. Re-enable only on an all-fp16 (RDNA) GPU set. ──
     flashAttention = false;
+    # ── Single-GPU serve: the default 3B fits in one 8GB card. Pin to Vulkan0 (the 5700 XT, the
+    #    only fp16-capable card) instead of splitting layers across the no-fp16 Polaris 570s. This
+    #    is the config proven to serve (offloaded 37/37 layers, server listening). Use "layer" only
+    #    for a model too big for one card. ──
+    splitMode = "none";
   };
 
   system.stateVersion = "24.11";
